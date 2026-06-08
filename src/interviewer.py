@@ -16,6 +16,9 @@ def generate_next_question(
     resume: dict,
     jd: dict,
 ) -> dict:
+    if memory.current_stage_id == "self_intro":
+        return _fallback_question(memory, plan)
+
     if memory.current_stage_id in {"resume_deep_dive", "tech_stack_scenario"}:
         probe = plan_probe_direction(llm, plan, memory, resume, jd)
         retrieval_query = probe.get("draft_question") or probe.get("query") or probe.get("probe_direction", "")
@@ -57,7 +60,7 @@ JD：{jd}
 def _fallback_question(memory: InterviewMemory, plan: dict) -> dict:
     stage_id = memory.current_stage_id
     if stage_id == "self_intro":
-        q = "请做一个 3 分钟左右的自我介绍，重点讲和目标岗位最相关的经历。"
+        q = "请用 3 分钟左右简单介绍一下自己。"
         qtype = "opening"
         focus = "自我介绍"
     elif stage_id == "resume_deep_dive":
