@@ -18,7 +18,7 @@ from src.interviewer import generate_next_question
 from src.llm_client import LLMClient
 from src.matcher import build_match_analysis
 from src.memory import InterviewMemory
-from src.planner import build_interview_plan, refine_plan_with_self_intro
+from src.planner import build_interview_plan, build_self_intro_plan, refine_plan_with_self_intro
 from src.profile import build_final_profile, build_pre_interview_brief
 from src.reporter import build_report
 from src.role_builder import build_interviewer_role
@@ -421,6 +421,13 @@ def as_json(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2, default=str)
 
 
+def _first_post_intro_stage_index(stages: list[dict[str, Any]]) -> int:
+    for index, stage in enumerate(stages):
+        if stage.get("id") != "self_intro":
+            return index
+    return len(stages)
+
+
 def tags(items: list[str], style: str = "") -> None:
     if not items:
         st.markdown('<span class="muted">暂无</span>', unsafe_allow_html=True)
@@ -673,9 +680,18 @@ def render_interview() -> None:
             if st.session_state.session_id:
                 store.add_turn(st.session_state.session_id, memory.conversation[-1].model_dump())
             if answered_stage_id == "self_intro":
+                full_plan = build_interview_plan(
+                    llm,
+                    st.session_state.jd_structured,
+                    st.session_state.resume_structured,
+                    st.session_state.pre_interview_brief,
+                    st.session_state.role,
+                    st.session_state.config,
+                    st.session_state.match_analysis,
+                )
                 refined_plan = refine_plan_with_self_intro(
                     llm,
-                    st.session_state.plan,
+                    full_plan,
                     self_intro_answer=answer,
                     jd=st.session_state.jd_structured,
                     resume=st.session_state.resume_structured,
@@ -684,8 +700,45 @@ def render_interview() -> None:
                 st.session_state.plan = refined_plan
                 memory.stages = refined_plan.get("stages", memory.stages)
                 memory.max_rounds = int(refined_plan.get("target_rounds") or memory.max_rounds)
+                memory.current_stage_index = _first_post_intro_stage_index(memory.stages)
+                memory.stage_round_index = 0
+                memory.consecutive_followups = 0
+                memory.current_round += 1
                 if st.session_state.session_id:
                     store.update_plan(st.session_state.session_id, refined_plan)
+                if memory.should_finish():
+                    final_profile = build_final_profile(
+                        llm,
+                        st.session_state.pre_interview_brief,
+                        st.session_state.plan,
+                        memory,
+                    )
+                    report = build_report(
+                        llm,
+                        st.session_state.role,
+                        st.session_state.plan,
+                        memory,
+                        final_profile,
+                    )
+                    st.session_state.final_profile = final_profile
+                    st.session_state.report = report
+                    st.session_state.finished = True
+                    if st.session_state.session_id:
+                        store.finish_session(
+                            st.session_state.session_id,
+                            final_profile=final_profile,
+                            report=report,
+                        )
+                else:
+                    st.session_state.question = generate_next_question(
+                        llm,
+                        st.session_state.role,
+                        st.session_state.plan,
+                        memory,
+                        st.session_state.resume_structured,
+                        st.session_state.jd_structured,
+                    )
+                st.rerun()
             _, direction_score = flow_controller.apply(
                 memory,
                 llm=llm,
@@ -825,7 +878,7 @@ def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str)
         st.error("请填写 JD 职位描述。")
         return
 
-    with st.spinner("正在解析资料并生成面试计划..."):
+    with st.spinner("正在解析资料并准备面试..."):
         resume_doc = load_document(save_upload(resume_file))
         jd_text = jd_text_input.strip()
 
@@ -835,15 +888,7 @@ def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str)
         match_analysis = build_match_analysis(llm, jd_structured, resume_structured)
         role = build_interviewer_role(llm, jd_structured, config)
         pre_interview_brief = build_pre_interview_brief(llm, jd_structured, resume_structured, config, match_analysis)
-        plan = build_interview_plan(
-            llm,
-            jd_structured,
-            resume_structured,
-            pre_interview_brief,
-            role,
-            config,
-            match_analysis,
-        )
+        plan = build_self_intro_plan(config)
         memory = InterviewMemory.from_plan(plan)
         question = generate_next_question(llm, role, plan, memory, resume_structured, jd_structured)
         session_id = store.start_latest_session(

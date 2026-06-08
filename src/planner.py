@@ -6,6 +6,35 @@ from src.json_utils import extract_json
 from src.llm_client import LLMClient
 
 
+def build_self_intro_plan(config: dict) -> dict:
+    stages = deepcopy(config["interview_flow"].get("stages", []))
+    intro_stage = next(
+        (stage for stage in stages if stage.get("id") == "self_intro"),
+        {
+            "id": "self_intro",
+            "name": "3分钟自我介绍",
+            "duration_minutes": 3,
+            "demo_rounds": 1,
+            "goal": "观察候选人的表达结构、职业主线和岗位相关经历。",
+        },
+    )
+    intro_stage = deepcopy(intro_stage)
+    intro_stage["demo_rounds"] = 1
+    return {
+        "interview_goal": "先完成候选人自我介绍，再基于 JD、简历、匹配分析和自我介绍生成后续面试计划。",
+        "demo_rounds": 1,
+        "target_rounds": 1,
+        "stages": [intro_stage],
+        "key_experiences_to_probe": [],
+        "experience_probe_plan": [],
+        "matched_tech_stack": [],
+        "skill_scenario_plan": [],
+        "must_verify_risks": [],
+        "recommended_focus": [],
+        "plan_status": "waiting_for_self_intro",
+    }
+
+
 def build_interview_plan(
     llm: LLMClient,
     jd: dict,
