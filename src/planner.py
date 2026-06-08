@@ -197,8 +197,6 @@ def _adaptive_interview_flow(config: dict, match_analysis: dict) -> dict:
             stage["demo_rounds"] = resume_rounds
         elif stage_id == "tech_stack_scenario":
             stage["demo_rounds"] = scenario_rounds
-        elif stage_id == "candidate_questions":
-            stage["demo_rounds"] = 1
 
     flow["stages"] = stages
     flow["target_rounds"] = target_rounds

@@ -386,6 +386,7 @@ def init_session() -> None:
         "pre_interview_brief": None,
         "final_profile": None,
         "report": None,
+        "closing_message_shown": False,
         "jd_structured": None,
         "resume_structured": None,
         "match_analysis": None,
@@ -407,6 +408,7 @@ def reset_interview() -> None:
         "pre_interview_brief",
         "final_profile",
         "report",
+        "closing_message_shown",
         "jd_structured",
         "resume_structured",
         "match_analysis",
@@ -731,6 +733,7 @@ def render_interview() -> None:
                     st.session_state.final_profile = final_profile
                     st.session_state.report = report
                     st.session_state.finished = True
+                    st.session_state.closing_message_shown = False
                     if st.session_state.session_id:
                         store.finish_session(
                             st.session_state.session_id,
@@ -773,6 +776,7 @@ def render_interview() -> None:
                 st.session_state.final_profile = final_profile
                 st.session_state.report = report
                 st.session_state.finished = True
+                st.session_state.closing_message_shown = False
                 if st.session_state.session_id:
                     store.finish_session(
                         st.session_state.session_id,
@@ -792,91 +796,30 @@ def render_interview() -> None:
 
 
 def render_report() -> None:
-    final_profile = st.session_state.final_profile or {}
     report = st.session_state.report or {}
+    readable_report = report.get("readable_report", "暂无可读报告。")
 
-    st.markdown(
-        """
-        <div class="hero">
-          <div class="hero-title">面试评估报告</div>
-          <p class="hero-subtitle">基于完整问答记忆生成，包含候选人最终画像、风险证据和下一轮建议。</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    if not st.session_state.get("closing_message_shown"):
+        st.markdown(
+            '<div class="chat-shell">'
+            + chat_message_html("面试官", "面试到此结束，面试结果一周内会通知。")
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+        st.session_state.closing_message_shown = True
+
+    st.markdown(readable_report)
+    col_download, col_save = st.columns([1, 1])
+    col_download.download_button(
+        "下载报告 Markdown",
+        data=readable_report,
+        file_name="interview_report.md",
+        mime="text/markdown",
+        key="download_readable_report_md",
     )
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("问答轮次", len(st.session_state.memory.conversation))
-    c2.metric("记录风险", len(st.session_state.memory.open_risks))
-    c3.metric("证据链", len(report.get("evidence_chain", [])))
-
-    tab_summary, tab_match, tab_profile, tab_scores, tab_evidence, tab_json = st.tabs(["结论", "匹配与沟通", "最终画像", "方向评分", "证据链", "JSON"])
-    with tab_summary:
-        readable_report = report.get("readable_report", "暂无可读报告。")
-        st.markdown(readable_report)
-        col_download, col_save = st.columns([1, 1])
-        col_download.download_button(
-            "下载可读版报告 Markdown",
-            data=readable_report,
-            file_name="interview_report.md",
-            mime="text/markdown",
-            key="download_readable_report_md",
-        )
-        if col_save.button("保存到 outputs 文件夹", use_container_width=True):
-            saved_path = save_text_output("interview_report.md", readable_report)
-            st.success(f"已保存：{saved_path.resolve()}")
-    with tab_match:
-        st.markdown("#### 岗位匹配度")
-        job_match = report.get("job_match", {}) or {}
-        st.write(job_match.get("summary", "暂无岗位匹配摘要。"))
-        tags(job_match.get("validated_strengths", []), "tag-teal")
-        tags(job_match.get("remaining_gaps", []), "tag-rose")
-        st.markdown("#### 沟通能力")
-        communication = report.get("communication", {}) or {}
-        st.write(communication.get("summary", "暂无沟通摘要。"))
-        tags(communication.get("observations", []), "tag-teal")
-        tags(communication.get("risks", []), "tag-rose")
-    with tab_profile:
-        st.json(final_profile)
-    with tab_scores:
-        scores = report.get("direction_scores", [])
-        if scores:
-            for score in scores:
-                st.markdown(
-                    f"#### {score.get('direction', '未命名方向')}：{score.get('level_label', '未验证')} ({score.get('verification_level', '-')}/4)"
-                )
-                if score.get("judgement"):
-                    st.write(score["judgement"])
-                if score.get("evidence"):
-                    st.caption("证据")
-                    tags(score.get("evidence", []), "tag-teal")
-                if score.get("missing_points"):
-                    st.caption("缺失点")
-                    tags(score.get("missing_points", []), "tag-rose")
-                if score.get("suggestion"):
-                    st.info(score["suggestion"])
-        else:
-            st.caption("暂无方向评分。")
-    with tab_evidence:
-        st.json(report.get("evidence_chain", []))
-    with tab_json:
-        package = {
-            "report": report,
-            "final_profile": final_profile,
-            "memory": st.session_state.memory.model_dump(),
-            "match_analysis": st.session_state.match_analysis,
-            "pre_interview_brief": st.session_state.pre_interview_brief,
-            "role": st.session_state.role,
-            "plan": st.session_state.plan,
-        }
-        st.json(package)
-        st.download_button(
-            "下载完整评估包 JSON",
-            data=as_json(package),
-            file_name="interview_report.json",
-            mime="application/json",
-            key="download_full_report_json",
-        )
+    if col_save.button("保存报告到 outputs", use_container_width=True):
+        saved_path = save_text_output("interview_report.md", readable_report)
+        st.success(f"已保存：{saved_path.resolve()}")
 
 
 render_css()

@@ -35,13 +35,6 @@ DEFAULT_INTERVIEW_CONFIG = {
                 "demo_rounds": 1,
                 "goal": "围绕 JD 与简历交集技术栈，考察基础知识、场景迁移和工程理解。",
             },
-            {
-                "id": "candidate_questions",
-                "name": "反问环节",
-                "duration_minutes": 10,
-                "demo_rounds": 1,
-                "goal": "观察候选人对岗位、团队、业务和成长路径的关注点。",
-            },
         ],
     },
 }

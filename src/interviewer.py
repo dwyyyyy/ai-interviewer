@@ -77,12 +77,8 @@ def _fallback_question(memory: InterviewMemory, plan: dict) -> dict:
         q = f"围绕你简历和 JD 中都出现的 {skill}，请结合一个项目场景说明你如何使用它，以及遇到问题时会怎么排查。"
         qtype = "scenario"
         focus = skill
-    elif stage_id == "candidate_questions":
-        q = "接下来进入反问环节，你可以问我 1-2 个关于岗位、团队、业务或技术方向的问题。"
-        qtype = "candidate_question"
-        focus = "反问"
     else:
-        q = "面试已结束。"
+        q = "面试到此结束，面试结果一周内会通知。"
         qtype = "closing"
         focus = "结束"
     return {
