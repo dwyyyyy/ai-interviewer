@@ -428,6 +428,14 @@ def _first_post_intro_stage_index(stages: list[dict[str, Any]]) -> int:
     return len(stages)
 
 
+def save_text_output(filename: str, content: str) -> Path:
+    output_dir = Path("outputs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
 def tags(items: list[str], style: str = "") -> None:
     if not items:
         st.markdown('<span class="muted">暂无</span>', unsafe_allow_html=True)
@@ -804,13 +812,19 @@ def render_report() -> None:
 
     tab_summary, tab_match, tab_profile, tab_scores, tab_evidence, tab_json = st.tabs(["结论", "匹配与沟通", "最终画像", "方向评分", "证据链", "JSON"])
     with tab_summary:
-        st.markdown(report.get("readable_report", "暂无可读报告。"))
-        st.download_button(
-            "下载人读版报告 Markdown",
-            data=report.get("readable_report", ""),
+        readable_report = report.get("readable_report", "暂无可读报告。")
+        st.markdown(readable_report)
+        col_download, col_save = st.columns([1, 1])
+        col_download.download_button(
+            "下载可读版报告 Markdown",
+            data=readable_report,
             file_name="interview_report.md",
             mime="text/markdown",
+            key="download_readable_report_md",
         )
+        if col_save.button("保存到 outputs 文件夹", use_container_width=True):
+            saved_path = save_text_output("interview_report.md", readable_report)
+            st.success(f"已保存：{saved_path.resolve()}")
     with tab_match:
         st.markdown("#### 岗位匹配度")
         job_match = report.get("job_match", {}) or {}
@@ -861,6 +875,7 @@ def render_report() -> None:
             data=as_json(package),
             file_name="interview_report.json",
             mime="application/json",
+            key="download_full_report_json",
         )
 
 
