@@ -446,15 +446,7 @@ def tags(items: list[str], style: str = "") -> None:
 
 
 def render_landing() -> None:
-    st.markdown(
-        """
-        <div class="hero">
-          <div class="hero-title">AI 模拟面试官 Agent</div>
-          <p class="hero-subtitle">从 JD 与简历出发，自动完成角色设定、面试计划、多轮追问、结构化记忆和最终评估报告。</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    return
 
 
 def render_landing_form() -> tuple[Any, str, str, bool, bool]:
