@@ -595,17 +595,17 @@ def chat_message_html(speaker: str, text: str, meta: str = "") -> str:
     meta_html = f'<div class="bubble-meta">{escape(meta)}</div>' if meta else ""
     left_avatar = "" if is_user else f'<div class="{avatar_class}">{avatar_text}</div>'
     right_avatar = f'<div class="{avatar_class}">{avatar_text}</div>' if is_user else ""
-    return f"""
-        <div class="{row_class}">
-          {left_avatar}
-          <div class="bubble-wrap">
-            <div class="speaker">{escape(speaker)}</div>
-            <div class="{bubble_class}">{escape(text)}</div>
-            {meta_html}
-          </div>
-          {right_avatar}
-        </div>
-        """
+    return (
+        f'<div class="{row_class}">'
+        f'{left_avatar}'
+        f'<div class="bubble-wrap">'
+        f'<div class="speaker">{escape(speaker)}</div>'
+        f'<div class="{bubble_class}">{escape(text)}</div>'
+        f'{meta_html}'
+        f'</div>'
+        f'{right_avatar}'
+        f'</div>'
+    )
 
 
 def render_chat_thread(memory: InterviewMemory, question: dict[str, Any]) -> None:
@@ -617,14 +617,7 @@ def render_chat_thread(memory: InterviewMemory, question: dict[str, Any]) -> Non
             messages.append(chat_message_html("面试官", turn.question))
             messages.append(chat_message_html("候选人", turn.answer))
         messages.append(chat_message_html("面试官", question["question"]))
-    st.markdown(
-        f"""
-        <div class="chat-shell">
-          {''.join(messages)}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="chat-shell">{"".join(messages)}</div>', unsafe_allow_html=True)
 
 
 def render_interview() -> None:
