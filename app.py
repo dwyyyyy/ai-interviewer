@@ -379,7 +379,6 @@ def init_session() -> None:
     defaults = {
         "ready": False,
         "finished": False,
-        "fast_demo": True,
         "question": None,
         "role": None,
         "plan": None,
@@ -401,7 +400,6 @@ def reset_interview() -> None:
     for key in [
         "ready",
         "finished",
-        "fast_demo",
         "question",
         "role",
         "plan",
@@ -423,20 +421,6 @@ def as_json(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2, default=str)
 
 
-class LocalFallbackLLM:
-    available = False
-    model = "local-fallback"
-    base_url = "local"
-    last_error = "快速演示模式：跳过远程模型调用。"
-
-    def complete(self, system: str, user: str, temperature: float = 0.2) -> str:
-        return ""
-
-
-def active_llm():
-    return LocalFallbackLLM() if st.session_state.get("fast_demo") else llm
-
-
 def tags(items: list[str], style: str = "") -> None:
     if not items:
         st.markdown('<span class="muted">暂无</span>', unsafe_allow_html=True)
@@ -449,7 +433,7 @@ def render_landing() -> None:
     return
 
 
-def render_landing_form() -> tuple[Any, str, str, bool, bool]:
+def render_landing_form() -> tuple[Any, str, str, bool]:
     st.markdown(
         """
         <div class="input-panel">
@@ -471,18 +455,13 @@ def render_landing_form() -> tuple[Any, str, str, bool, bool]:
             height=150,
             placeholder="可选。例如：你是一位严谨的后端技术面试官，重点考察项目真实性、MySQL、Redis、MQ 和工程落地能力，追问强度高一些。",
         )
-        fast_demo = st.checkbox(
-            "录屏快速模式：跳过远程模型初始化，快速进入问答",
-            value=True,
-            help="用于录制演示视频。关闭后会走完整 LLM 结构化、匹配和计划生成链路，耗时取决于模型服务速度。",
-        )
         col_a, col_b = st.columns([1, 1])
         start = col_a.form_submit_button("开始面试", type="primary", use_container_width=True)
         reset = col_b.form_submit_button("重置", use_container_width=True)
         if reset:
             reset_interview()
             st.rerun()
-        return resume_file, jd_text_input, requirement_text, fast_demo, start
+        return resume_file, jd_text_input, requirement_text, start
 
 
 def render_context_panel() -> None:
@@ -719,9 +698,8 @@ def render_interview() -> None:
             st.warning("请先输入回答。")
             return
         with st.spinner("正在评估回答并决定下一步..."):
-            interview_llm = active_llm()
             evaluation = evaluate_answer(
-                interview_llm,
+                llm,
                 question,
                 answer,
                 st.session_state.plan,
@@ -734,7 +712,7 @@ def render_interview() -> None:
                 store.add_turn(st.session_state.session_id, memory.conversation[-1].model_dump())
             _, direction_score = flow_controller.apply(
                 memory,
-                llm=interview_llm,
+                llm=llm,
                 plan=st.session_state.plan,
                 jd=st.session_state.jd_structured,
                 resume=st.session_state.resume_structured,
@@ -743,13 +721,13 @@ def render_interview() -> None:
                 store.add_direction_score(st.session_state.session_id, direction_score)
             if memory.should_finish():
                 final_profile = build_final_profile(
-                    interview_llm,
+                    llm,
                     st.session_state.pre_interview_brief,
                     st.session_state.plan,
                     memory,
                 )
                 report = build_report(
-                    interview_llm,
+                    llm,
                     st.session_state.role,
                     st.session_state.plan,
                     memory,
@@ -766,7 +744,7 @@ def render_interview() -> None:
                     )
             else:
                 st.session_state.question = generate_next_question(
-                    interview_llm,
+                    llm,
                     st.session_state.role,
                     st.session_state.plan,
                     memory,
@@ -863,7 +841,7 @@ llm = LLMClient()
 store = InterviewStore()
 flow_controller = InterviewFlowController()
 
-def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str, fast_demo: bool) -> None:
+def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str) -> None:
     if not resume_file:
         st.error("请先上传一份简历。")
         return
@@ -872,19 +850,17 @@ def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str,
         return
 
     with st.spinner("正在解析资料并生成面试计划..."):
-        st.session_state.fast_demo = fast_demo
-        interview_llm = active_llm()
         resume_doc = load_document(save_upload(resume_file))
         jd_text = jd_text_input.strip()
 
-        config = build_interview_config(interview_llm, requirement_text)
-        jd_structured = structure_jd(interview_llm, jd_text)
-        resume_structured = structure_resume(interview_llm, resume_doc.text)
-        match_analysis = build_match_analysis(interview_llm, jd_structured, resume_structured)
-        role = build_interviewer_role(interview_llm, jd_structured, config)
-        pre_interview_brief = build_pre_interview_brief(interview_llm, jd_structured, resume_structured, config, match_analysis)
+        config = build_interview_config(llm, requirement_text)
+        jd_structured = structure_jd(llm, jd_text)
+        resume_structured = structure_resume(llm, resume_doc.text)
+        match_analysis = build_match_analysis(llm, jd_structured, resume_structured)
+        role = build_interviewer_role(llm, jd_structured, config)
+        pre_interview_brief = build_pre_interview_brief(llm, jd_structured, resume_structured, config, match_analysis)
         plan = build_interview_plan(
-            interview_llm,
+            llm,
             jd_structured,
             resume_structured,
             pre_interview_brief,
@@ -893,7 +869,7 @@ def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str,
             match_analysis,
         )
         memory = InterviewMemory.from_plan(plan)
-        question = generate_next_question(interview_llm, role, plan, memory, resume_structured, jd_structured)
+        question = generate_next_question(llm, role, plan, memory, resume_structured, jd_structured)
         session_id = store.start_latest_session(
             jd_text=jd_text,
             resume_text=resume_doc.text,
@@ -921,9 +897,9 @@ def start_interview(resume_file: Any, jd_text_input: str, requirement_text: str,
 
 if not st.session_state.ready:
     render_landing()
-    resume_file, jd_text_input, requirement_text, fast_demo, start = render_landing_form()
+    resume_file, jd_text_input, requirement_text, start = render_landing_form()
     if start:
-        start_interview(resume_file, jd_text_input, requirement_text, fast_demo)
+        start_interview(resume_file, jd_text_input, requirement_text)
 else:
     if st.session_state.finished:
         render_report()
