@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +143,115 @@ def render_css() -> None:
             margin-bottom: 8px;
             text-transform: uppercase;
         }
+        .chat-header {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px 18px;
+            background: #ffffff;
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+        }
+        .chat-title {
+            color: var(--ink);
+            font-size: 24px;
+            font-weight: 780;
+            line-height: 1.25;
+            margin: 0 0 6px 0;
+        }
+        .chat-subtitle {
+            color: var(--muted);
+            font-size: 14px;
+            margin: 0;
+        }
+        .chat-shell {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 20px 18px 8px 18px;
+            box-shadow: var(--shadow);
+            margin-bottom: 14px;
+        }
+        .chat-row {
+            display: flex;
+            gap: 10px;
+            margin: 0 0 16px 0;
+            align-items: flex-start;
+        }
+        .chat-row.user {
+            justify-content: flex-end;
+        }
+        .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 800;
+            flex: 0 0 auto;
+        }
+        .avatar.ai {
+            background: #e7f6f3;
+            color: #0f766e;
+            border: 1px solid #b8d9d4;
+        }
+        .avatar.user {
+            background: #eef3ff;
+            color: #2458a7;
+            border: 1px solid #bfd0f3;
+        }
+        .bubble-wrap {
+            max-width: min(760px, 78%);
+        }
+        .chat-row.user .bubble-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .speaker {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            margin: 0 0 5px 0;
+        }
+        .bubble {
+            border-radius: 8px;
+            padding: 13px 15px;
+            font-size: 16px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .bubble.ai {
+            background: #f2fbf9;
+            color: var(--ink);
+            border: 1px solid #b8d9d4;
+        }
+        .bubble.user {
+            background: #2458a7;
+            color: #ffffff;
+            border: 1px solid #2458a7;
+        }
+        .bubble-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 6px;
+        }
+        .chat-input-panel {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 14px 16px 16px 16px;
+            box-shadow: var(--shadow);
+            margin-bottom: 14px;
+        }
+        .compact-progress {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
         .question-meta {
             display: flex;
             gap: 8px;
@@ -247,6 +357,9 @@ def render_css() -> None:
         @media (max-width: 900px) {
             .hero-title {
                 font-size: 24px;
+            }
+            .bubble-wrap {
+                max-width: 86%;
             }
         }
         </style>
@@ -481,41 +594,71 @@ def render_runtime_status() -> None:
         )
 
 
+def render_chat_message(speaker: str, text: str, meta: str = "") -> None:
+    is_user = speaker == "候选人"
+    row_class = "chat-row user" if is_user else "chat-row"
+    avatar_class = "avatar user" if is_user else "avatar ai"
+    bubble_class = "bubble user" if is_user else "bubble ai"
+    avatar_text = "你" if is_user else "AI"
+    meta_html = f'<div class="bubble-meta">{escape(meta)}</div>' if meta else ""
+    left_avatar = "" if is_user else f'<div class="{avatar_class}">{avatar_text}</div>'
+    right_avatar = f'<div class="{avatar_class}">{avatar_text}</div>' if is_user else ""
+    st.markdown(
+        f"""
+        <div class="{row_class}">
+          {left_avatar}
+          <div class="bubble-wrap">
+            <div class="speaker">{escape(speaker)}</div>
+            <div class="{bubble_class}">{escape(text)}</div>
+            {meta_html}
+          </div>
+          {right_avatar}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_chat_thread(memory: InterviewMemory, question: dict[str, Any]) -> None:
+    st.markdown('<div class="chat-shell">', unsafe_allow_html=True)
+    if not memory.conversation:
+        render_chat_message("面试官", question["question"], "当前问题")
+    else:
+        for turn in memory.conversation:
+            render_chat_message(
+                "面试官",
+                turn.question,
+                f"第 {turn.round} 轮 · {turn.focus_area}",
+            )
+            render_chat_message("候选人", turn.answer)
+        render_chat_message(
+            "面试官",
+            question["question"],
+            f"第 {memory.current_round} 轮 · {question.get('focus_area', memory.current_stage_name)}",
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_interview() -> None:
     memory: InterviewMemory = st.session_state.memory
     question = st.session_state.question
 
     st.markdown(
         f"""
-        <div class="hero">
-          <div class="hero-title">第 {memory.current_round} 轮 · {memory.current_stage_name}</div>
-          <p class="hero-subtitle">系统会基于当前阶段、历史问答和未闭环风险生成下一题；提交后只记录观察，不做单题打分。</p>
+        <div class="chat-header">
+          <div class="chat-title">AI 模拟面试 · 第 {memory.current_round} 轮</div>
+          <p class="chat-subtitle">当前方向：{escape(memory.current_stage_name)}。面试官提问在左侧，候选人回答在右侧。</p>
+          <div class="compact-progress">
+            <span class="tag tag-teal">已问 {len(memory.asked_questions)} 题</span>
+            <span class="tag">连续追问 {memory.consecutive_followups}</span>
+            <span class="tag tag-rose">未闭环风险 {len(memory.open_risks)}</span>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("当前阶段", memory.current_stage_name)
-    c2.metric("连续追问", memory.consecutive_followups)
-    c3.metric("未闭环风险", len(memory.open_risks))
-
-    st.markdown(
-        f"""
-        <div class="question">
-          <div class="question-label">Current Question</div>
-          {question["question"]}
-        </div>
-        <div class="question-meta">
-          <span class="tag tag-teal">考察点：{question.get('focus_area', '当前阶段')}</span>
-          <span class="tag">类型：{question.get('question_type', 'new_topic')}</span>
-          <span class="tag tag-amber">预期信号：{question.get('expected_signal', '观察回答是否具体、有证据')}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if question.get("reason"):
-        st.caption(f"出题依据：{question.get('reason')}")
+    render_chat_thread(memory, question)
 
     tts_config = load_browser_tts_config()
     if tts_config.enabled:
@@ -534,8 +677,29 @@ def render_interview() -> None:
         else:
             st.warning("已启用星云数字人，但缺少 XINGYUN_APP_ID 或 XINGYUN_APP_SECRET。")
 
-    answer = st.text_area("你的回答", height=210, key=f"answer_{memory.current_round}")
-    submit = st.button("提交回答", type="primary", use_container_width=True)
+    st.markdown('<div class="chat-input-panel">', unsafe_allow_html=True)
+    answer = st.text_area(
+        "候选人回答",
+        height=150,
+        key=f"answer_{memory.current_round}",
+        placeholder="在这里输入候选人的回答。提交后系统会判断继续追问还是切换方向。",
+        label_visibility="collapsed",
+    )
+    submit = st.button("发送回答", type="primary", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    with st.expander("过程信息 / 调试信息", expanded=False):
+        st.caption("当前问题元信息")
+        st.json(
+            {
+                "focus_area": question.get("focus_area", "当前阶段"),
+                "question_type": question.get("question_type", "new_topic"),
+                "expected_signal": question.get("expected_signal", "观察回答是否具体、有证据"),
+                "reason": question.get("reason", ""),
+            }
+        )
+        st.caption("简要状态")
+        st.json(memory.summary())
 
     if submit:
         if not answer.strip():
@@ -745,11 +909,7 @@ if not st.session_state.ready:
     if start:
         start_interview(resume_file, jd_text_input, requirement_text)
 else:
-    main_col, side_col = st.columns([1.65, 1], gap="large")
-    with main_col:
-        if st.session_state.finished:
-            render_report()
-        else:
-            render_interview()
-    with side_col:
-        render_context_panel()
+    if st.session_state.finished:
+        render_report()
+    else:
+        render_interview()
