@@ -1,0 +1,82 @@
+[
+  {
+    "id": "agent_memory_001",
+    "topic": "Agent Memory",
+    "difficulty": "middle",
+    "question_template": "如何设计 Agent 的短期记忆、长期记忆和任务过程记忆？",
+    "evaluation_points": ["短期上下文", "长期语义记忆", "写入策略", "召回策略", "错误记忆污染"],
+    "follow_ups": ["如果长期记忆写入了错误事实，你如何检测、回滚并避免后续污染？"]
+  },
+  {
+    "id": "context_engineering_001",
+    "topic": "Context Engineering",
+    "difficulty": "senior",
+    "question_template": "长任务场景下如何治理上下文膨胀和关键信息稀释？",
+    "evaluation_points": ["上下文裁剪", "摘要压缩", "外部状态", "检索回填", "信息优先级"],
+    "follow_ups": ["如果模型因为上下文裁剪丢失关键约束，你会如何发现并修复？"]
+  },
+  {
+    "id": "mcp_tool_001",
+    "topic": "MCP Tool",
+    "difficulty": "middle",
+    "question_template": "一个 MCP 工具从定义、注册、调用到失败处理的完整链路是什么？",
+    "evaluation_points": ["工具 schema", "参数校验", "权限边界", "错误处理", "观测日志"],
+    "follow_ups": ["如果模型选择了错误工具，你如何在系统层降低误调用风险？"]
+  },
+  {
+    "id": "rag_retrieval_001",
+    "topic": "RAG Retrieval",
+    "difficulty": "middle",
+    "question_template": "如何评估和优化 RAG 系统的召回质量？",
+    "evaluation_points": ["Recall@K", "人工标注集", "BM25", "向量检索", "RRF", "Query Rewrite"],
+    "follow_ups": ["如果召回结果相关但最终答案错误，你会怎么排查？"]
+  },
+  {
+    "id": "agent_eval_001",
+    "topic": "Agent Evaluation",
+    "difficulty": "senior",
+    "question_template": "如何为 Agent 系统设计自动化评测和回归测试？",
+    "evaluation_points": ["Case 集", "轨迹评估", "工具调用正确性", "端到端指标", "回归基线"],
+    "follow_ups": ["如果一次升级后整体通过率没变但用户投诉增加，你会如何定位？"]
+  },
+  {
+    "id": "agent_observability_001",
+    "topic": "Agent Observability",
+    "difficulty": "senior",
+    "question_template": "如何设计 Agent 全链路观测体系？",
+    "evaluation_points": ["trace", "工具调用日志", "召回日志", "token 成本", "延迟", "失败归因"],
+    "follow_ups": ["如何判断一次失败是检索问题、工具问题、Prompt 问题还是模型推理问题？"]
+  },
+  {
+    "id": "tool_calling_001",
+    "topic": "Tool Calling",
+    "difficulty": "middle",
+    "question_template": "如何设计稳定的工具调用链路，避免参数错误和调用失控？",
+    "evaluation_points": ["参数 schema", "确定性校验", "工具权限", "重试策略", "熔断"],
+    "follow_ups": ["如果工具返回异常结果，Agent 应该如何反思和纠错？"]
+  },
+  {
+    "id": "langgraph_langchain_001",
+    "topic": "LangGraph / LangChain",
+    "difficulty": "middle",
+    "question_template": "LangGraph 和 LangChain 在 Agent 编排上的差异是什么？",
+    "evaluation_points": ["状态图", "节点边", "Runnable", "Tool", "Memory", "可控性"],
+    "follow_ups": ["如果团队使用 LangChain，你如何把 LangGraph 项目经验迁移过去？"]
+  },
+  {
+    "id": "prompt_injection_001",
+    "topic": "Prompt Injection",
+    "difficulty": "senior",
+    "question_template": "Agent 接入外部网页或文件时，如何防范 Prompt 注入？",
+    "evaluation_points": ["untrusted 标记", "权限隔离", "工具白名单", "人工确认", "内容过滤"],
+    "follow_ups": ["如果检索内容要求模型泄露系统提示词，你会如何处理？"]
+  },
+  {
+    "id": "async_fallback_001",
+    "topic": "Async / Fallback",
+    "difficulty": "middle",
+    "question_template": "长流程 Agent 任务如何做异步执行、中断恢复和失败降级？",
+    "evaluation_points": ["队列", "checkpoint", "状态持久化", "幂等", "降级策略"],
+    "follow_ups": ["如果任务执行到一半服务重启，你如何恢复上下文和工具结果？"]
+  }
+]
