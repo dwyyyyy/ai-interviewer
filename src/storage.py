@@ -151,6 +151,19 @@ class InterviewStore:
             )
             conn.commit()
 
+    def update_plan(self, session_id: str, plan: dict[str, Any]) -> None:
+        with self._connect() as conn:
+            self._get_session(conn, session_id)
+            conn.execute(
+                """
+                UPDATE interview_memory
+                SET plan_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (_json(plan), _now(), session_id),
+            )
+            conn.commit()
+
     def finish_session(
         self,
         session_id: str,

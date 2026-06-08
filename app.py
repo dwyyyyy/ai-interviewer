@@ -18,7 +18,7 @@ from src.interviewer import generate_next_question
 from src.llm_client import LLMClient
 from src.matcher import build_match_analysis
 from src.memory import InterviewMemory
-from src.planner import build_interview_plan
+from src.planner import build_interview_plan, refine_plan_with_self_intro
 from src.profile import build_final_profile, build_pre_interview_brief
 from src.reporter import build_report
 from src.role_builder import build_interviewer_role
@@ -666,6 +666,7 @@ def render_interview() -> None:
             st.warning("请先输入回答。")
             return
         with st.spinner("正在评估回答并决定下一步..."):
+            answered_stage_id = memory.current_stage_id
             evaluation = evaluate_answer(
                 llm,
                 question,
@@ -678,6 +679,20 @@ def render_interview() -> None:
             memory.record_turn(question, answer, evaluation)
             if st.session_state.session_id:
                 store.add_turn(st.session_state.session_id, memory.conversation[-1].model_dump())
+            if answered_stage_id == "self_intro":
+                refined_plan = refine_plan_with_self_intro(
+                    llm,
+                    st.session_state.plan,
+                    self_intro_answer=answer,
+                    jd=st.session_state.jd_structured,
+                    resume=st.session_state.resume_structured,
+                    match_analysis=st.session_state.match_analysis,
+                )
+                st.session_state.plan = refined_plan
+                memory.stages = refined_plan.get("stages", memory.stages)
+                memory.max_rounds = int(refined_plan.get("target_rounds") or memory.max_rounds)
+                if st.session_state.session_id:
+                    store.update_plan(st.session_state.session_id, refined_plan)
             _, direction_score = flow_controller.apply(
                 memory,
                 llm=llm,

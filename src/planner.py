@@ -69,6 +69,77 @@ experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risk
     return _merge_plan_defaults(fallback, data)
 
 
+def refine_plan_with_self_intro(
+    llm: LLMClient,
+    plan: dict,
+    *,
+    self_intro_answer: str,
+    jd: dict,
+    resume: dict,
+    match_analysis: dict,
+) -> dict:
+    refined = deepcopy(plan)
+    intro_summary = self_intro_answer.strip()[:1200]
+    refined["self_intro_summary"] = intro_summary
+    refined["self_intro_used_for_planning"] = True
+
+    refined["experience_probe_plan"] = _prioritize_intro_experiences(
+        refined.get("experience_probe_plan", []),
+        intro_summary,
+    )
+    refined["skill_scenario_plan"] = _prioritize_intro_skills(
+        refined.get("skill_scenario_plan", []),
+        intro_summary,
+    )
+    intro_keywords = _extract_intro_keywords(intro_summary)
+    if intro_keywords:
+        recommended = list(refined.get("recommended_focus", []))
+        refined["recommended_focus"] = list(dict.fromkeys(intro_keywords + recommended))
+
+    if not llm.available:
+        return refined
+
+    prompt = f"""
+你是一名面试计划校准专家。候选人刚完成自我介绍，请基于这段自述微调后续面试计划。
+
+目标：
+1. 不改变面试阶段结构，不重新设计整场面试。
+2. 将候选人主动强调的项目、实习、技能、成果或业务场景，加入后续深挖优先级。
+3. 如果自我介绍中出现简历里未充分展开但与 JD 高相关的经历，应加入 key_experiences_to_probe 或 recommended_focus。
+4. 保留原 plan 中已有的重要风险和 JD 核心要求，不要只跟着候选人自述走。
+5. experience_probe_plan 仍然要按“大方向”组织，每个经历保留 2-3 个方向。
+6. skill_scenario_plan 仍然围绕技能和业务场景，不要生成具体小问题。
+
+输出要求：
+- 只输出合法 JSON 对象。
+- 禁止输出 Markdown、解释、注释、代码块。
+- 只能输出字段：key_experiences_to_probe, experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus, self_intro_summary, self_intro_planning_notes。
+
+原计划：{plan}
+自我介绍：{self_intro_answer}
+JD：{jd}
+简历：{resume}
+匹配分析：{match_analysis}
+"""
+    data = extract_json(llm.complete("你是专业的面试计划校准器。", prompt), {})
+    if not isinstance(data, dict):
+        return refined
+    for key in [
+        "key_experiences_to_probe",
+        "experience_probe_plan",
+        "matched_tech_stack",
+        "skill_scenario_plan",
+        "must_verify_risks",
+        "recommended_focus",
+        "self_intro_summary",
+        "self_intro_planning_notes",
+    ]:
+        if data.get(key) not in (None, "", []):
+            refined[key] = data[key]
+    refined["self_intro_used_for_planning"] = True
+    return refined
+
+
 def _adaptive_interview_flow(config: dict, match_analysis: dict) -> dict:
     flow = deepcopy(config["interview_flow"])
     stages = deepcopy(flow.get("stages", []))
@@ -104,6 +175,55 @@ def _adaptive_interview_flow(config: dict, match_analysis: dict) -> dict:
     flow["target_rounds"] = target_rounds
     flow["demo_rounds"] = target_rounds
     return flow
+
+
+def _prioritize_intro_experiences(experience_plan: list[dict], intro: str) -> list[dict]:
+    if not isinstance(experience_plan, list) or not intro:
+        return experience_plan
+    intro_lower = intro.lower()
+
+    def score(item: dict) -> int:
+        text = " ".join(
+            str(item.get(key, ""))
+            for key in ["experience_name", "experience_summary", "claimed_contribution", "match_reason"]
+        ).lower()
+        return sum(1 for token in _tokens_for_match(text) if token and token in intro_lower)
+
+    return sorted(experience_plan, key=score, reverse=True)
+
+
+def _prioritize_intro_skills(skill_plan: list[dict], intro: str) -> list[dict]:
+    if not isinstance(skill_plan, list) or not intro:
+        return skill_plan
+    intro_lower = intro.lower()
+    return sorted(
+        skill_plan,
+        key=lambda item: int(str(item.get("skill", "")).lower() in intro_lower),
+        reverse=True,
+    )
+
+
+def _extract_intro_keywords(intro: str) -> list[str]:
+    keywords = []
+    keyword_map = {
+        "自我介绍提到的重点项目": ["项目", "负责", "参与", "主导"],
+        "自我介绍提到的业务结果": ["提升", "增长", "转化", "指标", "数据"],
+        "自我介绍提到的 AI 工具/Agent 经验": ["agent", "rag", "prompt", "chatgpt", "大模型", "工作流"],
+        "自我介绍提到的个人贡献边界": ["我负责", "我主要", "个人贡献", "独立"],
+    }
+    intro_lower = intro.lower()
+    for label, words in keyword_map.items():
+        if any(word.lower() in intro_lower for word in words):
+            keywords.append(label)
+    return keywords
+
+
+def _tokens_for_match(text: str) -> list[str]:
+    return [
+        token.strip("，。；;,.()（）[]【】 ")
+        for token in text.replace("/", " ").replace("|", " ").split()
+        if len(token.strip()) >= 2
+    ]
 
 
 def _build_experience_probe_plan(experiences: list[dict], match_analysis: dict) -> list[dict]:
