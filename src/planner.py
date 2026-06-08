@@ -22,8 +22,6 @@ def build_self_intro_plan(config: dict) -> dict:
     intro_stage["demo_rounds"] = 1
     return {
         "interview_goal": "先完成候选人自我介绍，再基于 JD、简历、匹配分析和自我介绍生成后续面试计划。",
-        "demo_rounds": 1,
-        "target_rounds": 1,
         "stages": [intro_stage],
         "key_experiences_to_probe": [],
         "experience_probe_plan": [],
@@ -77,12 +75,12 @@ def build_interview_plan(
 5. key_experiences_to_probe 应优先选择与岗位能力最相关、最能验证个人贡献和真实性的经历。
 6. must_verify_risks 应表述为面试中需要验证的问题，不要做最终定性。
 7. recommended_focus 应能直接指导后续提问，例如平台迁移能力、AI 内容 SOP、指标复盘、Agent 原型落地。
-8. target_rounds 是建议轮次，不是固定轮次；后续 Interview Memory 可根据回答充分度提前结束或追问延展。
+8. 不要生成固定总轮次；后续轮次由 experience_probe_plan 和 skill_scenario_plan 中的大方向数量决定。
 
 输出要求：
 - 只输出合法 JSON 对象。
 - 禁止输出 Markdown、解释、注释、代码块。
-- 只能输出字段：interview_goal, demo_rounds, target_rounds, stages, key_experiences_to_probe, experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus。
+- 只能输出字段：interview_goal, stages, key_experiences_to_probe, experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus。
 
 JD：{jd}
 简历：{resume}
@@ -91,11 +89,11 @@ JD：{jd}
 面试官：{role}
 流程配置：{flow}
 
-字段：interview_goal, demo_rounds, target_rounds, stages, key_experiences_to_probe,
+字段：interview_goal, stages, key_experiences_to_probe,
 experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus。
 """
     data = extract_json(llm.complete("你是专业的招聘面试方案设计器。", prompt), fallback)
-    return _merge_plan_defaults(fallback, data)
+    return _sync_stage_rounds_to_plan(_merge_plan_defaults(fallback, data))
 
 
 def refine_plan_with_self_intro(
@@ -152,7 +150,7 @@ JD：{jd}
 """
     data = extract_json(llm.complete("你是专业的面试计划校准器。", prompt), {})
     if not isinstance(data, dict):
-        return refined
+        return _sync_stage_rounds_to_plan(refined)
     for key in [
         "key_experiences_to_probe",
         "experience_probe_plan",
@@ -166,42 +164,69 @@ JD：{jd}
         if data.get(key) not in (None, "", []):
             refined[key] = data[key]
     refined["self_intro_used_for_planning"] = True
-    return refined
+    return _sync_stage_rounds_to_plan(refined)
 
 
 def _adaptive_interview_flow(config: dict, match_analysis: dict) -> dict:
     flow = deepcopy(config["interview_flow"])
     stages = deepcopy(flow.get("stages", []))
-    base_rounds = int(flow.get("target_rounds") or flow.get("demo_rounds") or 6)
-    gap_count = len(match_analysis.get("possible_gaps", []))
-    risk_count = len(match_analysis.get("technical_risks", match_analysis.get("risks", [])))
-    probe_count = len(match_analysis.get("key_experiences_to_probe", []))
-
-    if gap_count + risk_count >= 5 or probe_count >= 4:
-        target_rounds = max(base_rounds, 8)
-    elif gap_count + risk_count <= 1 and probe_count <= 1:
-        target_rounds = min(base_rounds, 5)
-    else:
-        target_rounds = base_rounds
-    target_rounds = max(4, min(target_rounds, 10))
-
-    remaining = max(target_rounds - 2, 2)
-    resume_rounds = max(1, round(remaining * 0.65))
-    scenario_rounds = max(1, remaining - resume_rounds)
 
     for stage in stages:
         stage_id = stage.get("id")
         if stage_id == "self_intro":
             stage["demo_rounds"] = 1
         elif stage_id == "resume_deep_dive":
-            stage["demo_rounds"] = resume_rounds
+            stage["demo_rounds"] = 1
         elif stage_id == "tech_stack_scenario":
-            stage["demo_rounds"] = scenario_rounds
+            stage["demo_rounds"] = 1
 
     flow["stages"] = stages
-    flow["target_rounds"] = target_rounds
-    flow["demo_rounds"] = target_rounds
+    flow["target_rounds"] = sum(int(stage.get("demo_rounds", 1)) for stage in stages)
+    flow["demo_rounds"] = flow["target_rounds"]
     return flow
+
+
+def _sync_stage_rounds_to_plan(plan: dict) -> dict:
+    synced = deepcopy(plan)
+    stages = deepcopy(synced.get("stages", []))
+    experience_rounds = _count_experience_directions(synced)
+    skill_rounds = _count_skill_directions(synced)
+
+    for stage in stages:
+        stage_id = stage.get("id")
+        if stage_id == "self_intro":
+            stage["demo_rounds"] = 1
+        elif stage_id == "resume_deep_dive":
+            stage["demo_rounds"] = max(1, experience_rounds)
+        elif stage_id == "tech_stack_scenario":
+            stage["demo_rounds"] = max(1, skill_rounds)
+
+    synced["stages"] = stages
+    total_rounds = sum(int(stage.get("demo_rounds", 1)) for stage in stages)
+    synced["target_rounds"] = total_rounds
+    synced["demo_rounds"] = total_rounds
+    synced["round_policy"] = "plan_driven"
+    return synced
+
+
+def _count_experience_directions(plan: dict) -> int:
+    total = 0
+    for item in plan.get("experience_probe_plan", []) or []:
+        directions = item.get("directions", []) if isinstance(item, dict) else []
+        total += len(directions) if directions else 1
+    if total:
+        return total
+    return len(plan.get("key_experiences_to_probe", []) or [])
+
+
+def _count_skill_directions(plan: dict) -> int:
+    total = 0
+    for item in plan.get("skill_scenario_plan", []) or []:
+        directions = item.get("directions", []) if isinstance(item, dict) else []
+        total += len(directions) if directions else 1
+    if total:
+        return total
+    return len(plan.get("matched_tech_stack", []) or [])
 
 
 def _prioritize_intro_experiences(experience_plan: list[dict], intro: str) -> list[dict]:

@@ -9,10 +9,6 @@ DEFAULT_INTERVIEW_CONFIG = {
     },
     "interview_flow": {
         "total_duration_minutes": 68,
-        "target_rounds": 6,
-        "demo_rounds": 6,
-        "min_rounds": 4,
-        "max_rounds": 10,
         "stages": [
             {
                 "id": "self_intro",

@@ -709,7 +709,6 @@ def render_interview() -> None:
                 )
                 st.session_state.plan = refined_plan
                 memory.stages = refined_plan.get("stages", memory.stages)
-                memory.max_rounds = int(refined_plan.get("target_rounds") or memory.max_rounds)
                 memory.current_stage_index = _first_post_intro_stage_index(memory.stages)
                 memory.stage_round_index = 0
                 memory.consecutive_followups = 0

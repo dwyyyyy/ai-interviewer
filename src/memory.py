@@ -46,7 +46,6 @@ class DirectionScore(BaseModel):
 
 class InterviewMemory(BaseModel):
     stages: list[dict[str, Any]]
-    max_rounds: int = 8
     current_stage_index: int = 0
     current_round: int = 1
     stage_round_index: int = 0
@@ -60,8 +59,7 @@ class InterviewMemory(BaseModel):
 
     @classmethod
     def from_plan(cls, plan: dict) -> "InterviewMemory":
-        max_rounds = int(plan.get("target_rounds") or plan.get("demo_rounds", 6))
-        return cls(stages=plan.get("stages", []), max_rounds=max_rounds)
+        return cls(stages=plan.get("stages", []))
 
     @property
     def current_stage(self) -> dict[str, Any]:
@@ -150,7 +148,7 @@ class InterviewMemory(BaseModel):
             self.stage_round_index = 0
 
     def should_finish(self) -> bool:
-        return self.current_stage_index >= len(self.stages) or self.current_round > self.max_rounds
+        return self.current_stage_index >= len(self.stages)
 
     def summary(self) -> dict:
         return {

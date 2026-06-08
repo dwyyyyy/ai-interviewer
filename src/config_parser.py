@@ -17,10 +17,10 @@ def build_interview_config(llm: LLMClient, requirement_text: str | None) -> dict
 如果用户没有明确说明某项，请使用默认值。只输出 JSON，不要解释。
 
 要求：
-1. target_rounds 表示建议轮次，不是固定轮次。
-2. 如果用户要求“快速演示”“简单跑通”，可降低 target_rounds。
-3. 如果用户要求“深挖”“严格”“完整技术面”，可提高 target_rounds，但不要超过默认 max_rounds。
-4. stages 中的 demo_rounds 是阶段建议轮次，后续 Interview Memory 仍可根据回答质量提前结束或追问延展。
+1. 不要生成固定总轮次。
+2. 面试轮次由 stages 和后续 Planner 生成的考察方向数量决定。
+3. 如果用户要求“深挖”“严格”“完整技术面”，应增加考察方向或提高追问强度，而不是写死轮次数。
+4. stages 中的 demo_rounds 只表示该阶段计划方向数量，后续 Interview Memory 可根据回答质量追问延展。
 
 默认配置：
 {fallback}
