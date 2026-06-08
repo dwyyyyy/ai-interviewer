@@ -553,8 +553,6 @@ def render_context_panel() -> None:
             )
         with st.expander("项目/实习深挖计划"):
             st.json(plan.get("experience_probe_plan", []))
-        with st.expander("技能与场景计划"):
-            st.json(plan.get("skill_scenario_plan", []))
         with st.expander("查看计划 JSON"):
             st.json(plan)
     with tab_memory:

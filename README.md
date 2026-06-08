@@ -72,10 +72,9 @@ JD 结构化字段包括：
 
 系统开始时只生成一个自我介绍临时计划。候选人完成自我介绍后，`src/planner.py` 再根据 JD、简历、Matcher 结果和自我介绍内容生成正式面试计划。
 
-正式计划不是固定 8 轮，也不是提前写死每一道问题，而是生成两类稳定的大方向：
+正式计划不是固定 8 轮，也不是提前写死每一道问题，而是围绕候选人的项目、实习或工作经历生成稳定的大方向：
 
 - `experience_probe_plan`：围绕项目、实习、工作经历生成考察方向。
-- `skill_scenario_plan`：围绕技能和业务场景生成考察方向。
 
 例如一个项目可能生成 2-3 个方向：
 
@@ -85,7 +84,7 @@ JD 结构化字段包括：
 
 后续面试过程中，大方向保持稳定，小问题根据候选人具体经历、上一轮回答和题库检索结果动态生成。
 
-轮次控制采用 plan-driven 策略：`experience_probe_plan` 和 `skill_scenario_plan` 中有多少大方向，就推进多少计划方向；如果某个方向回答不充分，Flow Controller 才会追加追问。
+轮次控制采用 plan-driven 策略：`experience_probe_plan` 中有多少大方向，就推进多少计划方向；如果某个方向回答不充分，Flow Controller 才会追加追问。项目问完后直接结束并生成报告，不再单独进入业务场景题环节。
 
 ### 4. 题库检索辅助动态提问
 
@@ -177,7 +176,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["正式考察计划<br/>experience_probe_plan / skill_scenario_plan"] --> B["Probe Planner<br/>选择当前大方向"]
+    A["正式考察计划<br/>experience_probe_plan"] --> B["Probe Planner<br/>选择当前项目大方向"]
 
     B --> C["Question Retriever<br/>FTS5 + BM25 检索 Top 10"]
     C --> D["Question Composer<br/>结合简历经历和题库参考生成问题"]
@@ -280,7 +279,7 @@ Planner 的核心约束：
 不要生成固定总轮次。
 正式 plan 必须结合 JD、简历、Matcher 和候选人自我介绍。
 experience_probe_plan 针对项目/实习生成 2-3 个大方向。
-skill_scenario_plan 针对技能和业务场景生成验证方向。
+技能和业务场景不单独成环节，而是融入项目/实习深挖方向中验证。
 ```
 
 Question Composer 的核心约束：
@@ -329,7 +328,7 @@ Direction Scorer 的核心约束：
 解决方案：
 
 - 删除固定 `max_rounds` 截断。
-- 轮次由 `experience_probe_plan` 和 `skill_scenario_plan` 的大方向数量决定。
+- 轮次由 `experience_probe_plan` 的大方向数量决定。
 - 如果回答不充分，Flow Controller 允许在当前方向继续追问。
 - plan 方向走完后结束面试。
 

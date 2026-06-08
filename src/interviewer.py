@@ -19,7 +19,7 @@ def generate_next_question(
     if memory.current_stage_id == "self_intro":
         return _fallback_question(memory, plan)
 
-    if memory.current_stage_id in {"resume_deep_dive", "tech_stack_scenario"}:
+    if memory.current_stage_id == "resume_deep_dive":
         probe = plan_probe_direction(llm, plan, memory, resume, jd)
         retrieval_query = probe.get("draft_question") or probe.get("query") or probe.get("probe_direction", "")
         retrieved = retrieve_questions(retrieval_query, top_k=10)
@@ -71,12 +71,6 @@ def _fallback_question(memory: InterviewMemory, plan: dict) -> dict:
             q = "请选择简历中最能代表你能力的一段实习、项目、论文或竞赛经历，讲一下背景、你的个人贡献和最终结果。"
             qtype = "new_topic"
         focus = "简历深挖"
-    elif stage_id == "tech_stack_scenario":
-        skills = plan.get("matched_tech_stack") or ["MySQL", "Redis", "MQ"]
-        skill = skills[min(memory.stage_round_index, len(skills) - 1)]
-        q = f"围绕你简历和 JD 中都出现的 {skill}，请结合一个项目场景说明你如何使用它，以及遇到问题时会怎么排查。"
-        qtype = "scenario"
-        focus = skill
     else:
         q = "面试到此结束，面试结果一周内会通知。"
         qtype = "closing"

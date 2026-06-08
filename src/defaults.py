@@ -24,13 +24,6 @@ DEFAULT_INTERVIEW_CONFIG = {
                 "demo_rounds": 3,
                 "goal": "深挖实习、项目、论文、竞赛，验证真实性、个人贡献和技术细节。",
             },
-            {
-                "id": "tech_stack_scenario",
-                "name": "技术栈与场景题",
-                "duration_minutes": 15,
-                "demo_rounds": 1,
-                "goal": "围绕 JD 与简历交集技术栈，考察基础知识、场景迁移和工程理解。",
-            },
         ],
     },
 }

@@ -20,7 +20,7 @@ def plan_probe_direction(
 
 任务目标：
 1. 简历深挖阶段优先从 plan.experience_probe_plan 中选择当前大方向；一个方向信号足够后再进入下一个方向。
-2. 技能与场景题阶段优先从 plan.skill_scenario_plan 中选择当前大方向。
+2. 系统不再单独设置技能与业务场景题阶段；技能只在项目/实习深挖中验证。
 3. 如果 consecutive_followups > 0，说明上一轮还没问透，应继续围绕上一轮 focus_area 追问，不要切换大方向。
 4. draft_question 是内部草稿问题，只用于检索题库，不直接展示给候选人。
 5. query 用于题库检索，应包含核心业务词、能力词、经历名称和工具/平台词。
@@ -64,13 +64,8 @@ def _fallback_probe(plan: dict, memory: InterviewMemory) -> dict:
         source = item.get("experience_name", "")
         objective = item.get("objective", "")
         query = f"{source} {focus} {objective} contribution evidence metrics review"
-    elif stage_id == "tech_stack_scenario":
-        item = _select_skill_direction(plan.get("skill_scenario_plan", []), memory.stage_round_index)
-        focus = item.get("direction", item.get("skill", "场景迁移能力"))
-        source = item.get("skill", "")
-        objective = item.get("objective", "")
-        query = f"{source} {focus} {objective} business scenario evaluation"
     else:
+        item = {}
         focus = memory.current_stage_name
         source = ""
         objective = ""
@@ -84,7 +79,7 @@ def _fallback_probe(plan: dict, memory: InterviewMemory) -> dict:
         "query": query,
         "source_experience": source if stage_id == "resume_deep_dive" else "",
         "source_detail": item.get("experience_summary", "") if stage_id == "resume_deep_dive" else "",
-        "scenario_context": source if stage_id == "tech_stack_scenario" else "",
+        "scenario_context": "",
     }
 
 
@@ -96,23 +91,6 @@ def _select_experience_direction(plan_items: list[dict], index: int) -> dict:
                 {
                     "experience_name": item.get("experience_name", ""),
                     "experience_summary": item.get("experience_summary", ""),
-                    "direction": direction.get("direction", ""),
-                    "objective": direction.get("objective", ""),
-                    "evidence_to_seek": direction.get("evidence_to_seek", []),
-                }
-            )
-    if not flattened:
-        return {}
-    return flattened[min(index, len(flattened) - 1)]
-
-
-def _select_skill_direction(plan_items: list[dict], index: int) -> dict:
-    flattened = []
-    for item in plan_items:
-        for direction in item.get("directions", [])[:3]:
-            flattened.append(
-                {
-                    "skill": item.get("skill", ""),
                     "direction": direction.get("direction", ""),
                     "objective": direction.get("objective", ""),
                     "evidence_to_seek": direction.get("evidence_to_seek", []),

@@ -25,8 +25,6 @@ def build_self_intro_plan(config: dict) -> dict:
         "stages": [intro_stage],
         "key_experiences_to_probe": [],
         "experience_probe_plan": [],
-        "matched_tech_stack": [],
-        "skill_scenario_plan": [],
         "must_verify_risks": [],
         "recommended_focus": [],
         "plan_status": "waiting_for_self_intro",
@@ -48,7 +46,6 @@ def build_interview_plan(
         "key_experiences_to_probe",
         resume.get("projects", [])[:3] + resume.get("internships", [])[:2],
     )
-    matched_skills = match_analysis.get("matched_skills", pre_interview_brief.get("matched_skills", []))
     fallback = {
         "interview_goal": "验证候选人与岗位的匹配度、项目真实性、技术深度和工程落地能力。",
         "demo_rounds": flow["demo_rounds"],
@@ -56,8 +53,6 @@ def build_interview_plan(
         "stages": stages,
         "key_experiences_to_probe": key_experiences,
         "experience_probe_plan": _build_experience_probe_plan(key_experiences, match_analysis),
-        "matched_tech_stack": matched_skills,
-        "skill_scenario_plan": _build_skill_scenario_plan(jd, matched_skills, match_analysis),
         "must_verify_risks": match_analysis.get("technical_risks", match_analysis.get("risks", pre_interview_brief.get("priority_verification_points", []))),
         "recommended_focus": match_analysis.get("interview_focus", match_analysis.get("recommended_focus", [])),
     }
@@ -71,16 +66,16 @@ def build_interview_plan(
 1. 保留默认流程阶段，不要删除或重排核心阶段，但可以补充每个阶段的验证重点。
 2. 面试计划要围绕 match_analysis 中的匹配点、缺口、风险和重点经历展开。
 3. experience_probe_plan 是简历深挖阶段的考察地图：针对每个项目/实习沉淀 2-3 个大方向，每个方向包含 objective 和 evidence_to_seek。
-4. skill_scenario_plan 是技能与场景题阶段的考察地图：针对 JD 与简历匹配技能，沉淀可迁移到业务场景的问题方向。
+4. 不再单独生成技能或场景题阶段；岗位技能要融入项目/实习深挖方向里验证。
 5. key_experiences_to_probe 应优先选择与岗位能力最相关、最能验证个人贡献和真实性的经历。
 6. must_verify_risks 应表述为面试中需要验证的问题，不要做最终定性。
 7. recommended_focus 应能直接指导后续提问，例如平台迁移能力、AI 内容 SOP、指标复盘、Agent 原型落地。
-8. 不要生成固定总轮次；后续轮次由 experience_probe_plan 和 skill_scenario_plan 中的大方向数量决定。
+8. 不要生成固定总轮次；后续轮次由 experience_probe_plan 中的大方向数量决定。
 
 输出要求：
 - 只输出合法 JSON 对象。
 - 禁止输出 Markdown、解释、注释、代码块。
-- 只能输出字段：interview_goal, stages, key_experiences_to_probe, experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus。
+- 只能输出字段：interview_goal, stages, key_experiences_to_probe, experience_probe_plan, must_verify_risks, recommended_focus。
 
 JD：{jd}
 简历：{resume}
@@ -90,7 +85,7 @@ JD：{jd}
 流程配置：{flow}
 
 字段：interview_goal, stages, key_experiences_to_probe,
-experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus。
+experience_probe_plan, must_verify_risks, recommended_focus。
 """
     data = extract_json(llm.complete("你是专业的招聘面试方案设计器。", prompt), fallback)
     return _sync_stage_rounds_to_plan(_merge_plan_defaults(fallback, data))
@@ -114,10 +109,6 @@ def refine_plan_with_self_intro(
         refined.get("experience_probe_plan", []),
         intro_summary,
     )
-    refined["skill_scenario_plan"] = _prioritize_intro_skills(
-        refined.get("skill_scenario_plan", []),
-        intro_summary,
-    )
     intro_keywords = _extract_intro_keywords(intro_summary)
     if intro_keywords:
         recommended = list(refined.get("recommended_focus", []))
@@ -131,16 +122,16 @@ def refine_plan_with_self_intro(
 
 目标：
 1. 不改变面试阶段结构，不重新设计整场面试。
-2. 将候选人主动强调的项目、实习、技能、成果或业务场景，加入后续深挖优先级。
+2. 将候选人主动强调的项目、实习、技能、成果或业务场景，加入项目/实习深挖优先级。
 3. 如果自我介绍中出现简历里未充分展开但与 JD 高相关的经历，应加入 key_experiences_to_probe 或 recommended_focus。
 4. 保留原 plan 中已有的重要风险和 JD 核心要求，不要只跟着候选人自述走。
 5. experience_probe_plan 仍然要按“大方向”组织，每个经历保留 2-3 个方向。
-6. skill_scenario_plan 仍然围绕技能和业务场景，不要生成具体小问题。
+6. 不要生成独立技能题计划；技能和业务场景只作为项目/实习深挖方向中的验证重点。
 
 输出要求：
 - 只输出合法 JSON 对象。
 - 禁止输出 Markdown、解释、注释、代码块。
-- 只能输出字段：key_experiences_to_probe, experience_probe_plan, matched_tech_stack, skill_scenario_plan, must_verify_risks, recommended_focus, self_intro_summary, self_intro_planning_notes。
+- 只能输出字段：key_experiences_to_probe, experience_probe_plan, must_verify_risks, recommended_focus, self_intro_summary, self_intro_planning_notes。
 
 原计划：{plan}
 自我介绍：{self_intro_answer}
@@ -154,8 +145,6 @@ JD：{jd}
     for key in [
         "key_experiences_to_probe",
         "experience_probe_plan",
-        "matched_tech_stack",
-        "skill_scenario_plan",
         "must_verify_risks",
         "recommended_focus",
         "self_intro_summary",
@@ -177,8 +166,6 @@ def _adaptive_interview_flow(config: dict, match_analysis: dict) -> dict:
             stage["demo_rounds"] = 1
         elif stage_id == "resume_deep_dive":
             stage["demo_rounds"] = 1
-        elif stage_id == "tech_stack_scenario":
-            stage["demo_rounds"] = 1
 
     flow["stages"] = stages
     flow["target_rounds"] = sum(int(stage.get("demo_rounds", 1)) for stage in stages)
@@ -190,7 +177,6 @@ def _sync_stage_rounds_to_plan(plan: dict) -> dict:
     synced = deepcopy(plan)
     stages = deepcopy(synced.get("stages", []))
     experience_rounds = _count_experience_directions(synced)
-    skill_rounds = _count_skill_directions(synced)
 
     for stage in stages:
         stage_id = stage.get("id")
@@ -198,8 +184,6 @@ def _sync_stage_rounds_to_plan(plan: dict) -> dict:
             stage["demo_rounds"] = 1
         elif stage_id == "resume_deep_dive":
             stage["demo_rounds"] = max(1, experience_rounds)
-        elif stage_id == "tech_stack_scenario":
-            stage["demo_rounds"] = max(1, skill_rounds)
 
     synced["stages"] = stages
     total_rounds = sum(int(stage.get("demo_rounds", 1)) for stage in stages)
@@ -218,17 +202,6 @@ def _count_experience_directions(plan: dict) -> int:
         return total
     return len(plan.get("key_experiences_to_probe", []) or [])
 
-
-def _count_skill_directions(plan: dict) -> int:
-    total = 0
-    for item in plan.get("skill_scenario_plan", []) or []:
-        directions = item.get("directions", []) if isinstance(item, dict) else []
-        total += len(directions) if directions else 1
-    if total:
-        return total
-    return len(plan.get("matched_tech_stack", []) or [])
-
-
 def _prioritize_intro_experiences(experience_plan: list[dict], intro: str) -> list[dict]:
     if not isinstance(experience_plan, list) or not intro:
         return experience_plan
@@ -242,17 +215,6 @@ def _prioritize_intro_experiences(experience_plan: list[dict], intro: str) -> li
         return sum(1 for token in _tokens_for_match(text) if token and token in intro_lower)
 
     return sorted(experience_plan, key=score, reverse=True)
-
-
-def _prioritize_intro_skills(skill_plan: list[dict], intro: str) -> list[dict]:
-    if not isinstance(skill_plan, list) or not intro:
-        return skill_plan
-    intro_lower = intro.lower()
-    return sorted(
-        skill_plan,
-        key=lambda item: int(str(item.get("skill", "")).lower() in intro_lower),
-        reverse=True,
-    )
 
 
 def _extract_intro_keywords(intro: str) -> list[str]:
@@ -318,40 +280,6 @@ def _build_experience_probe_plan(experiences: list[dict], match_analysis: dict) 
             }
         )
     return result
-
-
-def _build_skill_scenario_plan(jd: dict, skills: list[str], match_analysis: dict) -> list[dict]:
-    business_context = jd.get("business_context", "")
-    gaps = match_analysis.get("possible_gaps", [])
-    focus = match_analysis.get("interview_focus", match_analysis.get("recommended_focus", []))
-    plan = []
-    for skill in skills[:6]:
-        plan.append(
-            {
-                "skill": skill,
-                "scenario_context": business_context,
-                "directions": [
-                    {
-                        "direction": "场景迁移",
-                        "objective": f"验证候选人能否把 {skill} 迁移到 {business_context or '目标岗位业务场景'}。",
-                        "evidence_to_seek": ["场景理解", "方案设计", "落地步骤", "边界条件"],
-                    },
-                    {
-                        "direction": "工具/方法深度",
-                        "objective": f"验证候选人对 {skill} 的真实使用深度，而不是停留在概念或简单调用。",
-                        "evidence_to_seek": ["工具链", "关键参数/策略", "质量控制", "效果评估"],
-                    },
-                    {
-                        "direction": "风险与复盘",
-                        "objective": f"验证候选人使用 {skill} 时如何处理失败、成本、质量和复盘优化。",
-                        "evidence_to_seek": ["失败案例", "监控指标", "优化动作", "复盘沉淀"],
-                    },
-                ],
-                "related_gaps": gaps[:3],
-                "related_focus": focus[:3],
-            }
-        )
-    return plan
 
 
 def _merge_plan_defaults(fallback: dict, data: object) -> dict:
