@@ -586,7 +586,7 @@ def render_runtime_status() -> None:
         )
 
 
-def render_chat_message(speaker: str, text: str, meta: str = "") -> None:
+def chat_message_html(speaker: str, text: str, meta: str = "") -> str:
     is_user = speaker == "候选人"
     row_class = "chat-row user" if is_user else "chat-row"
     avatar_class = "avatar user" if is_user else "avatar ai"
@@ -595,8 +595,7 @@ def render_chat_message(speaker: str, text: str, meta: str = "") -> None:
     meta_html = f'<div class="bubble-meta">{escape(meta)}</div>' if meta else ""
     left_avatar = "" if is_user else f'<div class="{avatar_class}">{avatar_text}</div>'
     right_avatar = f'<div class="{avatar_class}">{avatar_text}</div>' if is_user else ""
-    st.markdown(
-        f"""
+    return f"""
         <div class="{row_class}">
           {left_avatar}
           <div class="bubble-wrap">
@@ -606,49 +605,31 @@ def render_chat_message(speaker: str, text: str, meta: str = "") -> None:
           </div>
           {right_avatar}
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
 
 
 def render_chat_thread(memory: InterviewMemory, question: dict[str, Any]) -> None:
-    st.markdown('<div class="chat-shell">', unsafe_allow_html=True)
+    messages = []
     if not memory.conversation:
-        render_chat_message("面试官", question["question"], "当前问题")
+        messages.append(chat_message_html("面试官", question["question"]))
     else:
         for turn in memory.conversation:
-            render_chat_message(
-                "面试官",
-                turn.question,
-                f"第 {turn.round} 轮 · {turn.focus_area}",
-            )
-            render_chat_message("候选人", turn.answer)
-        render_chat_message(
-            "面试官",
-            question["question"],
-            f"第 {memory.current_round} 轮 · {question.get('focus_area', memory.current_stage_name)}",
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
+            messages.append(chat_message_html("面试官", turn.question))
+            messages.append(chat_message_html("候选人", turn.answer))
+        messages.append(chat_message_html("面试官", question["question"]))
+    st.markdown(
+        f"""
+        <div class="chat-shell">
+          {''.join(messages)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_interview() -> None:
     memory: InterviewMemory = st.session_state.memory
     question = st.session_state.question
-
-    st.markdown(
-        f"""
-        <div class="chat-header">
-          <div class="chat-title">AI 模拟面试 · 第 {memory.current_round} 轮</div>
-          <p class="chat-subtitle">当前方向：{escape(memory.current_stage_name)}。面试官提问在左侧，候选人回答在右侧。</p>
-          <div class="compact-progress">
-            <span class="tag tag-teal">已问 {len(memory.asked_questions)} 题</span>
-            <span class="tag">连续追问 {memory.consecutive_followups}</span>
-            <span class="tag tag-rose">未闭环风险 {len(memory.open_risks)}</span>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
     render_chat_thread(memory, question)
 
@@ -679,19 +660,6 @@ def render_interview() -> None:
     )
     submit = st.button("发送回答", type="primary", use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-    with st.expander("过程信息 / 调试信息", expanded=False):
-        st.caption("当前问题元信息")
-        st.json(
-            {
-                "focus_area": question.get("focus_area", "当前阶段"),
-                "question_type": question.get("question_type", "new_topic"),
-                "expected_signal": question.get("expected_signal", "观察回答是否具体、有证据"),
-                "reason": question.get("reason", ""),
-            }
-        )
-        st.caption("简要状态")
-        st.json(memory.summary())
 
     if submit:
         if not answer.strip():
