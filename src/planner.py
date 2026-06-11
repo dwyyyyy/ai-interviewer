@@ -66,11 +66,16 @@ def build_interview_plan(
 1. 保留默认流程阶段，不要删除或重排核心阶段，但可以补充每个阶段的验证重点。
 2. 面试计划要围绕 match_analysis 中的匹配点、缺口、风险和重点经历展开。
 3. experience_probe_plan 是简历深挖阶段的考察地图：针对每个项目/实习沉淀 2-3 个大方向，每个方向包含 objective 和 evidence_to_seek。
-4. 不再单独生成技能或场景题阶段；岗位技能要融入项目/实习深挖方向里验证。
+4. 每个大方向必须结合该项目/实习里的具体技术对象、业务对象或工具链，不要只写“个人贡献”“方法链路”“结果复盘”这种泛泛标题。
 5. key_experiences_to_probe 应优先选择与岗位能力最相关、最能验证个人贡献和真实性的经历。
 6. must_verify_risks 应表述为面试中需要验证的问题，不要做最终定性。
 7. recommended_focus 应能直接指导后续提问，例如平台迁移能力、AI 内容 SOP、指标复盘、Agent 原型落地。
 8. 不要生成固定总轮次；后续轮次由 experience_probe_plan 中的大方向数量决定。
+9. 不再单独生成技能或场景题阶段；岗位技能要融入项目/实习深挖方向里验证。
+10. 计划要体现“技术拷打”方向：本人实现边界、核心数据流/调用链、关键接口或 Prompt/Agent 编排、异常处理、权限/成本/性能、效果指标和复盘。
+11. directions[].direction 要具体到技术点，例如“MCP 工具与 MySQL 查询链路真实性”“Data Analyze Agent 的任务拆解和工具调用边界”，不要只写“技术深度”。
+12. directions[].objective 要能直接指导下一轮追问，必须包含要追问的技术细节、边界或证据。
+13. directions[].evidence_to_seek 要列出可验证证据，例如接口入参/出参、SQL 或数据表、工具调用链路、Prompt 模板、异常 case、指标口径、上线/使用结果。
 
 输出要求：
 - 只输出合法 JSON 对象。
@@ -125,8 +130,10 @@ def refine_plan_with_self_intro(
 2. 将候选人主动强调的项目、实习、技能、成果或业务场景，加入项目/实习深挖优先级。
 3. 如果自我介绍中出现简历里未充分展开但与 JD 高相关的经历，应加入 key_experiences_to_probe 或 recommended_focus。
 4. 保留原 plan 中已有的重要风险和 JD 核心要求，不要只跟着候选人自述走。
-5. experience_probe_plan 仍然要按“大方向”组织，每个经历保留 2-3 个方向。
+5. experience_probe_plan 仍然要按“大方向”组织，每个经历保留 2-3 个方向，但方向必须结合项目具体技术内容。
 6. 不要生成独立技能题计划；技能和业务场景只作为项目/实习深挖方向中的验证重点。
+7. 如果自我介绍里提到 MCP、Agent、RAG、MySQL、Prompt、自动化脚本、数据分析、内容 SOP 等具体对象，必须把它们写进 direction/objective/evidence_to_seek。
+8. 避免泛泛方向，例如“个人贡献与真实性”；应改成“某工具/模块的本人实现边界与真实性”。
 
 输出要求：
 - 只输出合法 JSON 对象。
@@ -247,21 +254,25 @@ def _build_experience_probe_plan(experiences: list[dict], match_analysis: dict) 
     for exp in experiences[:5]:
         name = str(exp.get("name") or exp.get("description") or "相关经历")[:80]
         keywords = exp.get("matched_keywords", []) or []
+        exp_text = _experience_text(exp)
+        tech_targets = _extract_technical_targets(exp_text, keywords)
+        primary_target = tech_targets[0] if tech_targets else name
+        secondary_target = tech_targets[1] if len(tech_targets) > 1 else primary_target
         directions = [
             {
-                "direction": "个人贡献与真实性",
-                "objective": f"确认候选人在「{name}」中的真实职责、决策边界和可独立复现部分。",
-                "evidence_to_seek": ["本人负责模块", "关键决策", "协作边界", "可复盘细节"],
+                "direction": f"{primary_target} 的本人实现边界与真实性",
+                "objective": f"围绕「{name}」拷打候选人是否真正做过 {primary_target}：本人负责了哪些模块，哪些代码/配置/Prompt/接口是自己完成的，和团队协作边界在哪里。",
+                "evidence_to_seek": ["本人负责模块", "关键接口或配置", "代码/Prompt/SQL 细节", "协作边界", "可复现操作步骤"],
             },
             {
-                "direction": "方法与执行链路",
-                "objective": f"拆解「{name}」从目标、方案、执行到复盘的完整链路。",
-                "evidence_to_seek": ["流程步骤", "工具/平台", "关键取舍", "异常处理"],
+                "direction": f"{secondary_target} 的数据流、调用链路与关键取舍",
+                "objective": f"拆解「{name}」中 {secondary_target} 从输入、处理、工具/接口调用到输出的完整链路，追问方案为什么这样设计，以及关键取舍是什么。",
+                "evidence_to_seek": ["输入输出结构", "工具/接口调用顺序", "数据表或字段", "参数校验", "关键取舍", "失败分支"],
             },
             {
-                "direction": "结果指标与复盘",
-                "objective": f"验证「{name}」的指标口径、业务结果和可迁移经验。",
-                "evidence_to_seek": ["指标基准", "结果变化", "归因逻辑", "复盘改进"],
+                "direction": f"{primary_target} 的异常处理、效果指标与复盘",
+                "objective": f"验证「{name}」中 {primary_target} 的异常 case、权限/成本/性能边界、效果指标和复盘改进，判断是否有真实落地经验。",
+                "evidence_to_seek": ["异常 case", "权限或安全边界", "成本/性能瓶颈", "指标口径", "实际结果", "复盘改进"],
             },
         ]
         if keywords:
@@ -280,6 +291,55 @@ def _build_experience_probe_plan(experiences: list[dict], match_analysis: dict) 
             }
         )
     return result
+
+
+def _experience_text(exp: dict) -> str:
+    return " ".join(
+        str(exp.get(key, ""))
+        for key in [
+            "name",
+            "description",
+            "experience_summary",
+            "claimed_contribution",
+            "match_reason",
+            "raw",
+            "tech_stack",
+        ]
+    )
+
+
+def _extract_technical_targets(text: str, keywords: list[str]) -> list[str]:
+    candidates = []
+    known_targets = [
+        "MCP Server",
+        "MCP 工具",
+        "Data Analyze Agent",
+        "Agent",
+        "RAG",
+        "MySQL",
+        "Prompt",
+        "工作流",
+        "自动化脚本",
+        "数据分析",
+        "内容 SOP",
+        "ChatGPT",
+        "Midjourney",
+        "Runway",
+        "小红书",
+        "抖音",
+        "API",
+        "Python",
+        "SQL",
+    ]
+    text_lower = text.lower()
+    for target in known_targets:
+        if target.lower() in text_lower:
+            candidates.append(target)
+    for keyword in keywords:
+        value = str(keyword).strip()
+        if value and value not in candidates:
+            candidates.append(value)
+    return candidates[:4]
 
 
 def _merge_plan_defaults(fallback: dict, data: object) -> dict:
